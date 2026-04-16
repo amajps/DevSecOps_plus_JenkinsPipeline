@@ -1,0 +1,85 @@
+/* General Styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-image: url('/static/images/background.jpg');
+    background-size: cover; /* Ensures the image covers the entire area */
+    background-repeat: no-repeat; /* Prevents tiling */
+    background-position: center center; /* Centers the image */
+}
+
+/* Header Styles */
+h1 {
+    color: #007bff;
+    text-align: center;
+    margin-top: 20px;
+}
+
+/* Form Styles */
+form {
+    background: #ffffff;
+    max-width: 400px;
+    margin: 20px auto;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+/* Button Styles */
+button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 100%;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+/* Search Section */
+h2 {
+    text-align: center;
+    color: #444;
+}
+
+input[name="q"] {
+    width: calc(100% - 22px); /* Poor practice with hardcoded calculations */
+    margin: 10px auto;
+}
+
+/* Vulnerable Inline Styling for Highlighting */
+.highlight {
+    background-color: yellow; /* Inline styling, open to XSS */
+    color: red;
+}
+
+/* Footer (Optional) */
+footer {
+    text-align: center;
+    padding: 10px;
+    background-color: #333;
+    color: #fff;
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+}
