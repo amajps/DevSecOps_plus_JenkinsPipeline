@@ -1,51 +1,67 @@
 pipeline {
     agent any
 
-    // Параметризация сборки согласно п.4 задания
     parameters {
-        string(name: 'REPO_URL', defaultValue: 'https://github.com/BrenesRM/insecure-web.git', description: 'URL репозитория')
-        string(name: 'BRANCH_TAG', defaultValue: 'main', description: 'Ветка или тег для сборки')
-        string(name: 'DOCKER_IMAGE_NAME', defaultValue: 'myuser/insecure-web', description: 'Имя образа в DockerHub')
-        string(name: 'DOCKER_TAG', defaultValue: 'latest', description: 'Тег образа')
+        string(name: 'REPO_URL', defaultValue: 'https://github.com/amajps/gazpromtest.git')
+        string(name: 'BRANCH_TAG', defaultValue: 'master')
+        string(name: 'DOCKER_IMAGE_NAME', defaultValue: 'amajps/vuln-app')
+        string(name: 'DOCKER_TAG', defaultValue: 'dev')
     }
 
     environment {
-        // Путь для сохранения отчетов сканеров
-        REPORTS_DIR = "${WORKSPACE}/security-reports"
-        // Имя контейнера для деплоя и DAST
-        CONTAINER_NAME = 'insecure-web-app'
-        // URL для DAST сканирования
-        APP_URL = 'http://localhost:80'
+        REPORTS_DIR = "security-reports"
+        SAST_DIR   = "${REPORTS_DIR}/semgrep"
+        SCA_DIR    = "${REPORTS_DIR}/dependency-check"
+        IMAGE_DIR  = "${REPORTS_DIR}/trivy"
+        DAST_DIR   = "${REPORTS_DIR}/zap"
+
+        CONTAINER_NAME = 'vuln-app'
+        APP_URL = 'http://localhost:5000'
     }
 
     stages {
-        
+
         stage('Checkout SCM') {
             steps {
-                echo "Клонирование репозитория: ${params.REPO_URL} (${params.BRANCH_TAG})"
-                git url: "${params.REPO_URL}", branch: "${params.BRANCH_TAG}"
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: "${params.BRANCH_TAG}"]],
+                    userRemoteConfigs: [[
+                        url: "${params.REPO_URL}",
+                        credentialsId: 'github-credentials'
+                    ]]
+                ])
+            }
+        }
+
+        stage('Prepare Report Dirs') {
+            steps {
+                sh """
+                    mkdir -p ${SAST_DIR}
+                    mkdir -p ${SCA_DIR}
+                    mkdir -p ${IMAGE_DIR}
+                    mkdir -p ${DAST_DIR}
+                    chmod -R 777 ${REPORTS_DIR}
+                """
             }
         }
 
         stage('SAST Scan (Semgrep)') {
             steps {
-                script {
-                    echo "Запуск Semgrep..."
-                    // Создаем директорию для отчетов
-                    sh "mkdir -p ${REPORTS_DIR}"
-                    // Запуск Semgrep с сохранением отчета в JSON
-                    sh """
-                        docker run --rm -v "${WORKSPACE}:/src" -w /src returntocorp/semgrep semgrep scan \
-                        --config=auto \
-                        --json --output ${REPORTS_DIR}/semgrep-report.json \
-                        --no-error
-                    """
-                }
+                sh """
+                    docker run --rm \
+                    -v "${WORKSPACE}:/src" \
+                    -w /src \
+                    returntocorp/semgrep semgrep scan \
+                    --config=auto \
+                    --json \
+                    --output /src/${SAST_DIR}/semgrep-report.json \
+                    --no-error
+                """
             }
             post {
                 always {
-                    // Архивируем отчет для ручной выгрузки в GitHub (п.3)
-                    archiveArtifacts artifacts: "${REPORTS_DIR}/semgrep-report.json", fingerprint: true
+                    archiveArtifacts artifacts: "${SAST_DIR}/semgrep-report.json", fingerprint: true
                 }
             }
         }
@@ -55,7 +71,10 @@ pipeline {
                 script {
                     echo "Запуск OWASP Dependency Check..."
                     sh """
-                        docker run --rm -v "${WORKSPACE}:/src" -v "${REPORTS_DIR}:/report" owasp/dependency-check \
+                        docker run --rm \
+                        -v "${WORKSPACE}:/src" \
+                        -v "${WORKSPACE}/security-reports:/report" \
+                        owasp/dependency-check \
                         --scan /src \
                         --format HTML \
                         --format JSON \
@@ -73,11 +92,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    echo "Сборка Docker образа: ${params.DOCKER_IMAGE_NAME}:${params.DOCKER_TAG}"
-                    // Используем переменные окружения Docker для тегирования
-                    docker.build("${params.DOCKER_IMAGE_NAME}:${params.DOCKER_TAG}")
-                }
+                sh "docker build -t ${params.DOCKER_IMAGE_NAME}:${params.DOCKER_TAG} ."
             }
         }
 
@@ -86,9 +101,12 @@ pipeline {
                 script {
                     echo "Запуск Trivy для сканирования собранного образа..."
                     sh """
-                        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-                        -v ${REPORTS_DIR}:/root/.cache/ aquasec/trivy image \
-                        --format json --output /root/.cache/trivy-report.json \
+                        docker run --rm \
+                        -v /var/run/docker.sock:/var/run/docker.sock \
+                        -v "${WORKSPACE}/security-reports:/report" \
+                        aquasec/trivy image \
+                        --format json \
+                        --output /report/trivy-report.json \
                         --severity HIGH,CRITICAL \
                         ${params.DOCKER_IMAGE_NAME}:${params.DOCKER_TAG}
                     """
@@ -101,60 +119,56 @@ pipeline {
             }
         }
 
+
         stage('Publishing to DockerHub') {
-            when {
-                expression { params.DOCKER_IMAGE_NAME != 'myuser/insecure-web' } // Простая проверка, что имя не дефолтное
-            }
             steps {
-                script {
-                    echo "Публикация образа в DockerHub..."
-                    // Предполагается, что Credentials ID 'dockerhub-creds' настроен в Jenkins
-                    docker.withRegistry('', 'dockerhub-creds') {
-                        def img = docker.image("${params.DOCKER_IMAGE_NAME}:${params.DOCKER_TAG}")
-                        img.push()
-                    }
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                        docker push ${params.DOCKER_IMAGE_NAME}:${params.DOCKER_TAG}
+                    """
                 }
             }
         }
 
         stage('Deployment') {
             steps {
-                script {
-                    echo "Остановка старого контейнера (если есть)..."
-                    sh "docker stop ${CONTAINER_NAME} || true && docker rm ${CONTAINER_NAME} || true"
-                    
-                    echo "Запуск контейнера на хостовой машине..."
-                    // Маппим порт 80 контейнера на порт 80 хоста
-                    sh """
-                        docker run -d --name ${CONTAINER_NAME} \
-                        -p 80:80 \
-                        ${params.DOCKER_IMAGE_NAME}:${params.DOCKER_TAG}
-                    """
-                    
-                    // Небольшая пауза, чтобы приложение успело подняться перед DAST
-                    sleep time: 10, unit: 'SECONDS'
-                }
+                sh "docker stop ${CONTAINER_NAME} || true && docker rm ${CONTAINER_NAME} || true"
+
+                sh """
+                    docker run -d --name ${CONTAINER_NAME} \
+                    -p 5000:80 \
+                    ${params.DOCKER_IMAGE_NAME}:${params.DOCKER_TAG}
+                """
+
+                sleep 10
             }
         }
 
         stage('DAST Scanning (OWASP ZAP)') {
             steps {
-                script {
-                    echo "Запуск OWASP ZAP Baseline Scan против ${APP_URL}"
-                    sh """
-                        docker run --rm --network="host" \
-                        -v ${REPORTS_DIR}:/zap/wrk/:rw \
-                        -t owasp/zap2docker-stable zap-baseline.py \
-                        -t ${APP_URL} \
-                        -J zap-report.json \
-                        -r zap-report.html || true
-                    """
-                    // Команда возвращает exit code 1 если найдены уязвимости (что для нас ОК), поэтому используем || true
-                }
+                sh """
+                    docker run --rm --network="host" -u 0 \
+                    -v "${WORKSPACE}/${DAST_DIR}:/zap/wrk/:rw" \
+                    zaproxy/zap-stable \
+                    zap-full-scan.py \
+                    -t ${APP_URL} \
+                    -J zap-report.json \
+                    -r zap-report.html \
+                    -m 5 \
+                    -T 10 \
+                    -d || true
+                """
+
+                sh "ls -la ${DAST_DIR} || true"
             }
             post {
                 always {
-                    archiveArtifacts artifacts: "${REPORTS_DIR}/zap-report.*", fingerprint: true
+                    archiveArtifacts artifacts: "${DAST_DIR}/zap-report.*", fingerprint: true
                 }
             }
         }
@@ -162,14 +176,8 @@ pipeline {
 
     post {
         always {
-            echo "Pipeline завершен. Отчеты сохранены в артефактах Jenkins."
-            echo "Для выгрузки в GitHub: скачайте артефакты через интерфейс Jenkins и закоммитьте их в репозиторий вручную."
-            
-            // Очистка: Останавливаем контейнер, но оставляем образ для возможного переиспользования
             sh "docker stop ${CONTAINER_NAME} || true"
             sh "docker rm ${CONTAINER_NAME} || true"
-            
-            // Удаляем workspace в конце, если нужно (опционально)
             cleanWs()
         }
     }
