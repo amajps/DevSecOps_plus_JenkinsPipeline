@@ -22,6 +22,6 @@ ENV DB_PATH=/app/data/test.db
 
 USER appuser
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["python", "app.py"]

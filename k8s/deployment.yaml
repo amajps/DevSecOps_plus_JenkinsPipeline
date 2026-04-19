@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-app
+  template:
+    metadata:
+      labels:
+        app: vuln-app
+    spec:
+      securityContext:
+        runAsUser: 10000
+        fsGroup: 10000
+        seLinuxOptions:
+          level: "s0"
+      containers:
+        - name: vuln-app
+          image: amajps/vuln-app:dev
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DB_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: vuln-app-config
+                  key: DB_PATH
+          envFrom:
+            - secretRef:
+                name: vuln-app-secret
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+          volumeMounts:
+            - name: app-data
+              mountPath: /app/data
+      volumes:
+        - name: app-data
+          emptyDir: {}
