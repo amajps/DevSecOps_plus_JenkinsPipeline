@@ -63,18 +63,34 @@ Insecure Deployment: Application runs in debug mode.
 Improper Security Headers: Missing or incorrect HTTP security headers.
 
 
-Notes
-This application is designed for learning purposes only.
-Do not use this application in a production environment.
-Make sure to clean up your environment after testing:
-bash
-Copy code
-docker-compose down
+mkdir -p /var/lib/jenkins/.kube
+cp ~/.kube/config /var/lib/jenkins/.kube/config
+chown -R jenkins:jenkins /var/lib/jenkins/.kube
 
-License
-This project is licensed under the MIT License. See the LICENSE file for details.
 
-Author
-Marlon Brenes
-Master's in Cybersecurity
-GitHub Profile
+sudo mkdir -p /var/lib/jenkins/.kube
+sudo cp /home/kali/.kube/config /var/lib/jenkins/.kube/config
+
+🔥 Шаг 1 — копируем kubeconfig Jenkins-у
+sudo mkdir -p /var/lib/jenkins/.kube
+sudo cp /home/kali/.kube/config /var/lib/jenkins/.kube/config
+🔥 Шаг 2 — исправляем пути внутри config
+
+Открой:
+
+sudo nano /var/lib/jenkins/.kube/config
+
+Найди:
+
+client-certificate: /home/kali/.minikube/...
+client-key: /home/kali/.minikube/...
+certificate-authority: /home/kali/.minikube/...
+👉 ЗАМЕНИ на:
+client-certificate: /var/lib/jenkins/.minikube/profiles/minikube/client.crt
+client-key: /var/lib/jenkins/.minikube/profiles/minikube/client.key
+certificate-authority: /var/lib/jenkins/.minikube/ca.crt
+🔥 Шаг 3 — копируем сами сертификаты
+sudo cp -r /home/kali/.minikube /var/lib/jenkins/
+sudo chown -R jenkins:jenkins /var/lib/jenkins/.minikube
+🔥 Шаг 4 — права
+sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
