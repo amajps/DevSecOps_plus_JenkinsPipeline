@@ -1,96 +1,96 @@
-# Insecure Web Project
+# Отчет по тестовому заданию DevSecOps
 
-This project demonstrates an intentionally insecure web application for testing and educational purposes. The application is designed to be run in a Docker container and is built with poor security practices, making it an ideal target for penetration testing and security analysis tools like **Nikto**.
+Данный проект реализует полный DevSecOps pipeline для веб-приложения с использованием:
 
-> **Disclaimer:** This project is for educational and testing purposes only. Do not deploy this application in a production environment.
+- CI/CD: Jenkins
+- SAST: Semgrep
+- SCA: OWASP Dependency Check
+- Container Scanning: Trivy
+- DAST: OWASP ZAP
+- Containerization: Docker
+- Orchestration: Kubernetes (Minikube)
 
----
+Pipeline выполняет полный цикл:
 
-## Features
-- **Insecure Web Application**:
-  - Written in Python (Flask) with common web vulnerabilities.
-  - Bad security practices included (e.g., no input validation, weak passwords, exposed sensitive data).
-- **Dockerized Application**:
-  - Easy to deploy with Docker.
-  - Contains all dependencies and configurations.
-- **Testing Environment**:
-  - Ready for tools like Nikto to analyze the application for vulnerabilities.
-
----
-
-## Prerequisites
-
-1. **Docker**: Ensure Docker is installed on your system.  
-   [Download Docker](https://www.docker.com/get-started)
-
-2. **Docker Compose**: To simplify multi-container orchestration.  
-   [Install Docker Compose](https://docs.docker.com/compose/install/)
+```
+Code → Scan → Build → Scan → Push → Deploy → DAST
+```
 
 ---
 
-## Project Structure
+# Требования
 
-insecure-web/ ├── app/ │ ├── static/ │ │ ├── style.css # CSS file for the web app │ │ └── images/ │ │ └── background.jpg # Background image for styling │ ├── templates/ │ │ └── index.html # Main HTML file for the app │ └── app.py # Flask application ├── Dockerfile # Docker configuration for the web app ├── docker-compose.yml # Compose file for multi-container setup └── README.md # Project documentation
+- Linux (Kali / Ubuntu)
+- Docker
+- Jenkins
+- kubectl
+- Minikube
 
+Для того чтобы установить docker,  kubernetes, minikube, jenkins можно следовать мануалам установки
+
+```
+https://docs.docker.com/engine/install/
+https://www.kali.org/docs/containers/installing-docker-on-kali/ #Если у вас kali
+https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
+https://minikube.sigs.k8s.io/docs/start/?arch=%2Flinux%2Fx86-64%2Fstable%2Fbinary+download
+https://www.jenkins.io/doc/book/installing/linux/
+```
+Из-за того что PSP depricated, minikikube нужно запускать со следующими параметрами
+```
+sudo swapoff -a
+minikube start   --kubernetes-version=v1.23.17  --driver=docker   --extra-config=apiserver.enable-admission-plugins=PodSecurityPolicy  --addons=pod-security-policy
+```
+Чтобы скопировать репозиторий:
+```
+git clone https://github.com/amajps/gazpromtest.git
+```
+
+### Jenkins
+
+Что бы запустить проект, а именно пайплайн, нужно зайти в jenkins по ссылке http://localhost:8080, После того как вы установили Jenkins по мануалу, нужно Unlock jenkins перейти в
+```
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+```
+, но бдите, пароль будет выведен в консоли. После того как вы вставили нужно будет выбрать **Install suggested plugins**, потом добавить Учетные Записи ![[Pasted image 20260420101457.png]]github-credentials для доступа к github
+dockerhub-creds для push образа в репозиторий
 
 ---
+потом нужно установить GitHub Authentification plugin **Manage Jenkins** > **Plugin**
+![[Pasted image 20260420101830.png]]
+---
+**Важно** сделать следующие шаги c включенным minikube для того чтобы пустить Jenkins в 
 
-## Usage
-
-### 1. Clone the Repository
-```bash
-git clone https://github.com/brenesrm/insecure-web.git
-cd insecure-web
-
-docker-compose up --build
-
-http://127.0.0.1:80
-
-Use tools like Nikto or OWASP ZAP to analyze the application:
-
-bash
-
-Copy code
-
-nikto -h http://127.0.0.1:80
-
-
-Example Vulnerabilities
-No Input Validation: User input is not sanitized or validated.
-Hardcoded Credentials: Admin credentials are hardcoded in the application.
-Exposed Sensitive Data: Logs and database files may leak sensitive information.
-Insecure Deployment: Application runs in debug mode.
-Improper Security Headers: Missing or incorrect HTTP security headers.
-
-
-mkdir -p /var/lib/jenkins/.kube
-cp ~/.kube/config /var/lib/jenkins/.kube/config
-chown -R jenkins:jenkins /var/lib/jenkins/.kube
-
-
+```
+# Шаг 1
 sudo mkdir -p /var/lib/jenkins/.kube
-sudo cp /home/kali/.kube/config /var/lib/jenkins/.kube/config
+sudo cp ~/.kube/config /var/lib/jenkins/.kube/config
 
-🔥 Шаг 1 — копируем kubeconfig Jenkins-у
-sudo mkdir -p /var/lib/jenkins/.kube
-sudo cp /home/kali/.kube/config /var/lib/jenkins/.kube/config
-🔥 Шаг 2 — исправляем пути внутри config
-
-Открой:
-
-sudo nano /var/lib/jenkins/.kube/config
-
-Найди:
-
-client-certificate: /home/kali/.minikube/...
-client-key: /home/kali/.minikube/...
-certificate-authority: /home/kali/.minikube/...
-👉 ЗАМЕНИ на:
-client-certificate: /var/lib/jenkins/.minikube/profiles/minikube/client.crt
-client-key: /var/lib/jenkins/.minikube/profiles/minikube/client.key
-certificate-authority: /var/lib/jenkins/.minikube/ca.crt
-🔥 Шаг 3 — копируем сами сертификаты
+# Шаг 2 - копируем сертификаты ДО изменения config
 sudo cp -r /home/kali/.minikube /var/lib/jenkins/
 sudo chown -R jenkins:jenkins /var/lib/jenkins/.minikube
-🔥 Шаг 4 — права
+
+# Шаг 3 - правим config
+sudo nano /var/lib/jenkins/.kube/config
+# Заменить пути на:
+# client-certificate: /var/lib/jenkins/.minikube/profiles/minikube/client.crt
+# client-key: /var/lib/jenkins/.minikube/profiles/minikube/client.key
+# certificate-authority: /var/lib/jenkins/.minikube/ca.crt
+
+# Шаг 4 - финальные права
 sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
+```
+## После всего того что описано выше
+
+Можно запускать пайплайн, для этого перейдите **New Item** > **Pipleine** и назовите его, дальше перейдите на **Configure** и вставьте код из Jenkinsfile если хотите проверить результат **задания 1**, и k8s/Jenkinsfile чтобы проверить результат **задания 2**
+результаты сканирования будут храниться в 
+```
+/var/lib/jenkins/jobs/<Имя_пайлайна>/builds/<Итерация/попытка_запуска>/archive/security-report
+```
+
+## Ссылка на репозиторий на образ
+```
+https://hub.docker.com/repository/docker/amajps/vuln-app/general
+```
+# Troubleshooting
+
+Если у вас не возникла ошибка на этапе SCA с [INFO] NVD API has 345,268 records in this update (конкретно не подгружается база уязвимостей), то попробуйте с VPN, если не получится то закомментируйте, я не понял в чем дело. При перепроверке 20.04.2026 SCA или очень долго загружался или не загружался вообще

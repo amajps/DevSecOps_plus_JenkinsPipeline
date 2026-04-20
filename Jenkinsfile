@@ -16,7 +16,7 @@ pipeline {
         DAST_DIR   = "${REPORTS_DIR}/zap"
 
         CONTAINER_NAME = 'vuln-app'
-        APP_URL = 'http://localhost:5000'
+        APP_URL = 'http://localhost:8080'
     }
 
     stages {
@@ -141,7 +141,7 @@ pipeline {
 
                 sh """
                     docker run -d --name ${CONTAINER_NAME} \
-                    -p 5000:80 \
+                    -p 8081:8080 \
                     ${params.DOCKER_IMAGE_NAME}:${params.DOCKER_TAG}
                 """
 
