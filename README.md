@@ -51,12 +51,14 @@ git clone https://github.com/amajps/gazpromtest.git
 ```
 sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 ```
-, но бдите, пароль будет выведен в консоли. После того как вы вставили нужно будет выбрать **Install suggested plugins**, потом добавить Учетные Записи ![[Pasted image 20260420101457.png]]github-credentials для доступа к github
+, но бдите, пароль будет выведен в консоли. После того как вы вставили нужно будет выбрать **Install suggested plugins**, потом добавить Учетные Записи 
+![creds](img/cred.jpg)
+github-credentials для доступа к github
 dockerhub-creds для push образа в репозиторий
 
 ---
 потом нужно установить GitHub Authentification plugin **Manage Jenkins** > **Plugin**
-![[Pasted image 20260420101830.png]]
+![auth_plagin](img/auth.jpg)
 ---
 **Важно** сделать следующие шаги c включенным minikube для того чтобы пустить Jenkins в 
 
@@ -93,4 +95,4 @@ https://hub.docker.com/repository/docker/amajps/vuln-app/general
 ```
 # Troubleshooting
 
-Если у вас не возникла ошибка на этапе SCA с [INFO] NVD API has 345,268 records in this update (конкретно не подгружается база уязвимостей), то попробуйте с VPN, если не получится то закомментируйте, я не понял в чем дело. При перепроверке 20.04.2026 SCA или очень долго загружался или не загружался вообще
+Если у вас не возникла ошибка на этапе SCA с [INFO] NVD API has 345,268 records in this update (конкретно не подгружается база уязвимостей), то попробуйте с VPN, если не получится то закомментируйте, я не понял в чем дело. При перепроверке 20.04.2026 SCA очень долго загружался или не загружался вообще
